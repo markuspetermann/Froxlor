@@ -29,7 +29,7 @@ header('Expires: ' . gmdate( 'D, d M Y H:i:s \G\M\T', time()));
 // Inline-JS is no longer allowed and used
 // See: http://people.mozilla.org/~bsterne/content-security-policy/index.html
 // New stuff see: https://www.owasp.org/index.php/List_of_useful_HTTP_headers and https://www.owasp.org/index.php/Content_Security_Policy
-$csp_content = "default-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self'; reflected-xss block;";
+$csp_content = "default-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self';";
 header("Content-Security-Policy: ".$csp_content);
 header("X-Content-Security-Policy: ".$csp_content);
 header("X-WebKit-CSP: ".$csp_content);
@@ -141,36 +141,6 @@ if (isset($_SERVER['HTTPS']) && (strtolower($_SERVER['HTTPS']) != 'off')) {
 }
 
 /**
- * disable magic_quotes_runtime if enabled
- */
-// since 5.4 get_magic_quotes_runtime() and get_magic_quotes_gpc() return always FALSE
-if (version_compare(PHP_VERSION, "5.4.0", "<")) {
-	if (get_magic_quotes_runtime()) {
-		// deactivate
-		set_magic_quotes_runtime(false);
-	}
-
-	/**
-	 * Reverse magic_quotes_gpc=on to have clean GPC data again
-	 */
-	if (get_magic_quotes_gpc()) {
-		$in = array(&$_GET, &$_POST, &$_COOKIE);
-
-		$_in = $in;
-		foreach ($_in as $k => $v) {
-			foreach ($v as $key => $val) {
-				if (!is_array($val)) {
-					$in[$k][$key] = stripslashes($val);
-					continue;
-				}
-				$in[] = & $in[$k][$key];
-			}
-		}
-		unset($in);
-	}
-}
-
-/**
  * SESSION MANAGEMENT
  */
 $remote_addr = $_SERVER['REMOTE_ADDR'];
@@ -224,7 +194,7 @@ if (isset($s)
 		$adminsession = '0';
 	}
 
-	$query.= "WHERE `s`.`hash` = :hash AND `s`.`ipaddress` = :ipaddr
+	$query.= " WHERE `s`.`hash` = :hash AND `s`.`ipaddress` = :ipaddr
 		AND `s`.`useragent` = :ua AND `s`.`lastactivity` > :timediff
 		AND `s`.`adminsession` = :adminsession
 	";

@@ -151,7 +151,16 @@ class lighttpd extends HttpConfigBase
 					/**
 					 * own php-fpm vhost
 					 */
-					if ((int) Settings::Get('phpfpm.enabled') == 1) {
+					if ((int) Settings::Get('phpfpm.enabled') == 1 && (int) Settings::Get('phpfpm.enabled_ownvhost') == 1) {
+						// get fpm config
+						$fpm_sel_stmt = Database::prepare("
+							SELECT f.id FROM `" . TABLE_PANEL_FPMDAEMONS . "` f
+							LEFT JOIN `" . TABLE_PANEL_PHPCONFIGS . "` p ON p.fpmsettingid = f.id
+							WHERE p.id = :phpconfigid
+						");
+						$fpm_config = Database::pexecute_first($fpm_sel_stmt, array(
+							'phpconfigid' => Settings::Get('phpfpm.vhost_defaultini')
+						));
 						$domain = array(
 							'id' => 'none',
 							'domain' => Settings::Get('system.hostname'),
@@ -162,7 +171,9 @@ class lighttpd extends HttpConfigBase
 							'openbasedir' => 0,
 							'email' => Settings::Get('panel.adminmail'),
 							'loginname' => 'froxlor.panel',
-							'documentroot' => $mypath
+							'documentroot' => $mypath,
+							'customerroot' => $mypath,
+							'fpm_config_id' => isset($fpm_config['id']) ? $fpm_config['id'] : 1
 						);
 
 						$php = new phpinterface($domain);
@@ -185,7 +196,8 @@ class lighttpd extends HttpConfigBase
 							'openbasedir' => 0,
 							'email' => Settings::Get('panel.adminmail'),
 							'loginname' => 'froxlor.panel',
-							'documentroot' => $mypath
+							'documentroot' => $mypath,
+							'customerroot' => $mypath
 						);
 					}
 				} else {
@@ -193,7 +205,8 @@ class lighttpd extends HttpConfigBase
 					$domain = array(
 						'domain' => Settings::Get('system.hostname'),
 						'loginname' => 'froxlor.panel',
-						'documentroot' => $mypath
+						'documentroot' => $mypath,
+						'customerroot' => $mypath
 					);
 				}
 
@@ -219,6 +232,7 @@ class lighttpd extends HttpConfigBase
 					'adminid' => 1, /* first admin-user (superadmin) */
 					'loginname' => 'froxlor.panel',
 					'documentroot' => $mypath,
+					'customerroot' => $mypath,
 					'parentdomainid' => 0,
 				);
 
@@ -243,6 +257,14 @@ class lighttpd extends HttpConfigBase
 					} else {
 						$this->lighttpd_data[$vhost_filename] .= 'ssl.engine = "enable"' . "\n";
 						$this->lighttpd_data[$vhost_filename] .= 'ssl.use-compression = "disable"' . "\n";
+						if (!empty(Settings::Get('system.dhparams_file'))) {
+							$dhparams = makeCorrectFile(Settings::Get('system.dhparams_file'));
+							if (!file_exists($dhparams)) {
+								safe_exec('openssl dhparam -out '.escapeshellarg($dhparams).' 4096');
+							}
+							$this->lighttpd_data[$vhost_filename] .= 'ssl.dh-file = "' . $dhparams . '"' . "\n";
+							$this->lighttpd_data[$vhost_filename] .= 'ssl.ec-curve = "secp384r1"' . "\n";
+						}
 						$this->lighttpd_data[$vhost_filename] .= 'ssl.use-sslv2 = "disable"' . "\n";
 						$this->lighttpd_data[$vhost_filename] .= 'ssl.use-sslv3 = "disable"' . "\n";
 						$this->lighttpd_data[$vhost_filename] .= 'ssl.cipher-list = "' . Settings::Get('system.ssl_cipher_list') . '"' . "\n";
@@ -552,6 +574,14 @@ class lighttpd extends HttpConfigBase
 				// ssl.engine only necessary once in the ip/port vhost (SERVER['socket'] condition)
 				//$ssl_settings .= 'ssl.engine = "enable"' . "\n";
 				$ssl_settings .= 'ssl.use-compression = "disable"' . "\n";
+				if (!empty(Settings::Get('system.dhparams_file'))) {
+					$dhparams = makeCorrectFile(Settings::Get('system.dhparams_file'));
+					if (!file_exists($dhparams)) {
+						safe_exec('openssl dhparam -out '.escapeshellarg($dhparams).' 4096');
+					}
+					$ssl_settings .= 'ssl.dh-file = "' . $dhparams . '"' . "\n";
+					$ssl_settings .= 'ssl.ec-curve = "secp384r1"' . "\n";
+				}
 				$ssl_settings .= 'ssl.use-sslv2 = "disable"' . "\n";
 				$ssl_settings .= 'ssl.use-sslv3 = "disable"' . "\n";
 				$ssl_settings .= 'ssl.cipher-list = "' . Settings::Get('system.ssl_cipher_list') . '"' . "\n";

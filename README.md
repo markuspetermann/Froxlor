@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.com/Froxlor/Froxlor.svg?branch=master)](https://travis-ci.com/Froxlor/Froxlor)
+
 # Froxlor
 
 The server administration software for your needs.

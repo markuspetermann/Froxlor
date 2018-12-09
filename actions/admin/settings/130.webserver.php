@@ -60,6 +60,30 @@ return array(
 						'apache2'
 					)
 				),
+				'system_http2_support' => array(
+					'label' => $lng['serversettings']['http2_support'],
+					'settinggroup' => 'system',
+					'varname' => 'http2_support',
+					'type' => 'bool',
+					'default' => false,
+					'save_method' => 'storeSettingField',
+					'websrv_avail' => array(
+						'apache2',
+						'nginx'
+					),
+					'visible' => Settings::Get('system.use_ssl')
+				),
+				'system_dhparams_file' => array(
+					'label' => $lng['serversettings']['dhparams_file'],
+					'settinggroup' => 'system',
+					'varname' => 'dhparams_file',
+					'type' => 'string',
+					'string_type' => 'file',
+					'string_emptyallowed' => true,
+					'default' => '',
+					'save_method' => 'storeSettingField',
+					'visible' => Settings::Get('system.use_ssl')
+				),
 				'system_httpuser' => array(
 					'label' => $lng['admin']['webserver_user'],
 					'settinggroup' => 'system',

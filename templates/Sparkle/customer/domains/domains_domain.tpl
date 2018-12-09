@@ -5,7 +5,10 @@
 	<tr>
 </if>
 	<td>
-		<a href="http://{$row['domain']}" target="_blank">{$row['domain']}</a>
+		<a href="http://{$row['domain']}" target="_blank"><b>{$row['domain']}</b></a>
+		<if $row['registration_date'] != ''>
+			<br><small>{$lng['domains']['registration_date']}: {$row['registration_date']}</small>
+		</if>
 		<if $row['termination_date'] != ''>
 			<br><small><div class="red">({$lng['domains']['termination_date_overview']} {$row['termination_date']})</div></small>
 		</if>
@@ -19,6 +22,11 @@
 			<a href="{$linker->getLink(array('section' => 'domains', 'page' => 'domains', 'action' => 'edit', 'id' => $row['id']))}">
 				<img src="templates/{$theme}/assets/img/icons/edit.png" alt="{$lng['panel']['edit']}" title="{$lng['panel']['edit']}" />
 			</a>&nbsp;
+		</if>
+		<if $userinfo['logviewenabled'] == '1'>
+		<a href="{$linker->getLink(array('section' => 'domains', 'page' => 'logfiles', 'domain_id' => $row['id']))}">
+			<img src="templates/{$theme}/assets/img/icons/view.png" alt="{$lng['panel']['viewlogs']}" title="{$lng['panel']['viewlogs']}" />
+		</a>
 		</if>
 		<if $row['parentdomainid'] != '0' && !(isset($row['domainaliasid']) && $row['domainaliasid'] != 0)>
 			<a href="{$linker->getLink(array('section' => 'domains', 'page' => 'domains', 'action' => 'delete', 'id' => $row['id']))}">

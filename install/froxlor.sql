@@ -95,7 +95,7 @@ CREATE TABLE `panel_admins` (
   `name` varchar(255) NOT NULL default '',
   `email` varchar(255) NOT NULL default '',
   `def_language` varchar(255) NOT NULL default '',
-  `ip` tinyint(4) NOT NULL default '-1',
+  `ip` varchar(500) NOT NULL default '-1',
   `customers` int(15) NOT NULL default '0',
   `customers_used` int(15) NOT NULL default '0',
   `customers_see_all` tinyint(1) NOT NULL default '0',
@@ -133,6 +133,8 @@ CREATE TABLE `panel_admins` (
   `theme` varchar(255) NOT NULL default 'Sparkle',
   `custom_notes` text,
   `custom_notes_show` tinyint(1) NOT NULL default '0',
+  `type_2fa` tinyint(1) NOT NULL default '0',
+  `data_2fa` varchar(500) NOT NULL default '',
    PRIMARY KEY  (`adminid`),
    UNIQUE KEY `loginname` (`loginname`)
 ) ENGINE=MyISAM CHARSET=utf8 COLLATE=utf8_general_ci;
@@ -200,6 +202,9 @@ CREATE TABLE `panel_customers` (
   `leregistered` tinyint(1) NOT NULL default '0',
   `leaccount` varchar(255) default '',
   `allowed_phpconfigs` varchar(500) NOT NULL default '',
+  `type_2fa` tinyint(1) NOT NULL default '0',
+  `data_2fa` varchar(500) NOT NULL default '',
+  `logviewenabled` tinyint(1) NOT NULL default '0',
    PRIMARY KEY  (`customerid`),
    UNIQUE KEY `loginname` (`loginname`)
 ) ENGINE=MyISAM CHARSET=utf8 COLLATE=utf8_general_ci;
@@ -406,21 +411,12 @@ INSERT INTO `panel_settings` (`settinggroup`, `varname`, `value`) VALUES
 	('login', 'maxloginattempts', '3'),
 	('login', 'deactivatetime', '900'),
 	('phpfpm', 'enabled', '0'),
-	('phpfpm', 'configdir', '/etc/php-fpm.d/'),
-	('phpfpm', 'reload', '/etc/init.d/php-fpm restart'),
-	('phpfpm', 'pm', 'static'),
-	('phpfpm', 'max_children', '1'),
-	('phpfpm', 'start_servers', '20'),
-	('phpfpm', 'min_spare_servers', '5'),
-	('phpfpm', 'max_spare_servers', '35'),
-	('phpfpm', 'max_requests', '0'),
 	('phpfpm', 'tmpdir', '/var/customers/tmp/'),
 	('phpfpm', 'peardir', '/usr/share/php/:/usr/share/php5/'),
 	('phpfpm', 'envpath', '/usr/local/bin:/usr/bin:/bin'),
 	('phpfpm', 'enabled_ownvhost', '0'),
 	('phpfpm', 'vhost_httpuser', 'froxlorlocal'),
 	('phpfpm', 'vhost_httpgroup', 'froxlorlocal'),
-	('phpfpm', 'idle_timeout', '30'),
 	('phpfpm', 'aliasconfigdir', '/var/www/php-fpm/'),
 	('phpfpm', 'defaultini', '1'),
 	('phpfpm', 'vhost_defaultini', '2'),
@@ -541,6 +537,7 @@ opcache.interned_strings_buffer'),
 	('system', 'mysql_access_host', 'localhost'),
 	('system', 'lastcronrun', ''),
 	('system', 'defaultip', '1'),
+	('system', 'defaultsslip', ''),
 	('system', 'phpappendopenbasedir', '/tmp/'),
 	('system', 'deactivateddocroot', ''),
 	('system', 'mailpwcleartext', '0'),
@@ -654,7 +651,7 @@ opcache.interned_strings_buffer'),
 	('system', 'hsts_incsub', '0'),
 	('system', 'hsts_preload', '0'),
 	('system', 'leregistered', '0'),
-  ('system', 'leaccount', ''),
+	('system', 'leaccount', ''),
 	('system', 'nssextrausers', '0'),
 	('system', 'disable_le_selfcheck', '0'),
 	('system', 'ssl_protocols', 'TLSv1,TLSv1.2'),
@@ -662,6 +659,9 @@ opcache.interned_strings_buffer'),
 	('system', 'logfiles_type', '1'),
 	('system', 'logfiles_piped', '0'),
 	('system', 'logfiles_script', ''),
+	('system', 'dhparams_file', ''),
+	('api', 'enabled', '0'),
+	('2fa', 'enabled', '1'),
 	('panel', 'decimal_places', '4'),
 	('panel', 'adminmail', 'admin@SERVERNAME'),
 	('panel', 'phpmyadmin_url', ''),
@@ -693,8 +693,8 @@ opcache.interned_strings_buffer'),
 	('panel', 'password_special_char_required', '0'),
 	('panel', 'password_special_char', '!?<>§$%+#=@'),
 	('panel', 'customer_hide_options', ''),
-	('panel', 'version', '0.9.39.5'),
-	('panel', 'db_version', '201809180');
+	('panel', 'version', '0.10.0'),
+	('panel', 'db_version', '201812010');
 
 
 DROP TABLE IF EXISTS `panel_tasks`;
@@ -902,6 +902,15 @@ CREATE TABLE `panel_phpconfigs` (
   `phpsettings` text NOT NULL,
   `fpmsettingid` int(11) NOT NULL DEFAULT '1',
   `pass_authorizationheader` tinyint(1) NOT NULL default '0',
+  `override_fpmconfig` tinyint(1) NOT NULL DEFAULT '0',
+  `pm` varchar(15) NOT NULL DEFAULT 'static',
+  `max_children` int(4) NOT NULL DEFAULT '1',
+  `start_servers` int(4) NOT NULL DEFAULT '20',
+  `min_spare_servers` int(4) NOT NULL DEFAULT '5',
+  `max_spare_servers` int(4) NOT NULL DEFAULT '35',
+  `max_requests` int(4) NOT NULL DEFAULT '0',
+  `idle_timeout` int(4) NOT NULL DEFAULT '30',
+  `limit_extensions` varchar(255) NOT NULL default '.php',
   PRIMARY KEY  (`id`),
   KEY `fpmsettingid` (`fpmsettingid`)
 ) ENGINE=MyISAM CHARSET=utf8 COLLATE=utf8_general_ci;
@@ -1047,5 +1056,20 @@ CREATE TABLE `panel_plans` (
   `ts` int(15) NOT NULL default '0',
   PRIMARY KEY  (id),
   KEY adminid (adminid)
+) ENGINE=MyISAM CHARSET=utf8 COLLATE=utf8_general_ci;
+
+
+DROP TABLE IF EXISTS `api_keys`;
+CREATE TABLE `api_keys` (
+  `id` int(11) NOT NULL auto_increment,
+  `adminid` int(11) NOT NULL default '0',
+  `customerid` int(11) NOT NULL default '0',
+  `apikey` varchar(500) NOT NULL default '',
+  `secret` varchar(500) NOT NULL default '',
+  `allowed_from` text NOT NULL,
+  `valid_until` int(15) NOT NULL default '0',
+  PRIMARY KEY  (id),
+  KEY adminid (adminid),
+  KEY customerid (customerid)
 ) ENGINE=MyISAM CHARSET=utf8 COLLATE=utf8_general_ci;
 

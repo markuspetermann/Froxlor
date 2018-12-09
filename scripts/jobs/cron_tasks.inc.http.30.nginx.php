@@ -63,16 +63,7 @@ class nginx extends HttpConfigBase
 
 	public function reload()
 	{
-		$this->logger->logAction(CRON_ACTION, LOG_INFO, 'nginx::reload: reloading nginx');
-		safe_exec(Settings::Get('system.apachereload_command'));
-
-		/**
-		 * nginx does not auto-spawn fcgi-processes
-		 */
-		if (Settings::Get('system.phpreload_command') != '' && (int) Settings::Get('phpfpm.enabled') == 0) {
-			$this->logger->logAction(CRON_ACTION, LOG_INFO, 'nginx::reload: restarting php processes');
-			safe_exec(Settings::Get('system.phpreload_command'));
-		} elseif ((int) Settings::Get('phpfpm.enabled') == 1) {
+		if ((int) Settings::Get('phpfpm.enabled') == 1) {
 			// get all start/stop commands
 			$startstop_sel = Database::prepare("SELECT reload_cmd, config_dir FROM `" . TABLE_PANEL_FPMDAEMONS . "`");
 			Database::pexecute($startstop_sel);
@@ -89,6 +80,17 @@ class nginx extends HttpConfigBase
 				$this->logger->logAction(CRON_ACTION, LOG_INFO, 'nginx::reload: running ' . $restart_cmd['reload_cmd']);
 				safe_exec(escapeshellcmd($restart_cmd['reload_cmd']));
 			}
+		}
+
+		$this->logger->logAction(CRON_ACTION, LOG_INFO, 'nginx::reload: reloading nginx');
+		safe_exec(Settings::Get('system.apachereload_command'));
+
+		/**
+		 * nginx does not auto-spawn fcgi-processes
+		 */
+		if (Settings::Get('system.phpreload_command') != '' && (int) Settings::Get('phpfpm.enabled') == 0) {
+			$this->logger->logAction(CRON_ACTION, LOG_INFO, 'nginx::reload: restarting php processes');
+			safe_exec(Settings::Get('system.phpreload_command'));
 		}
 	}
 
@@ -185,6 +187,7 @@ class nginx extends HttpConfigBase
 						'adminid' => 1, /* first admin-user (superadmin) */
 						'loginname' => 'froxlor.panel',
 						'documentroot' => $mypath,
+						'customerroot' => $mypath,
 						'parentdomainid' => 0
 					);
 
@@ -255,7 +258,8 @@ class nginx extends HttpConfigBase
 					$this->nginx_data[$vhost_filename] .= $this->processSpecialConfigTemplate($row_ipsandports['specialsettings'], array(
 						'domain' => Settings::Get('system.hostname'),
 						'loginname' => Settings::Get('phpfpm.vhost_httpuser'),
-						'documentroot' => $mypath
+						'documentroot' => $mypath,
+						'customerroot' => $mypath
 					), $row_ipsandports['ip'], $row_ipsandports['port'], $row_ipsandports['ssl'] == '1') . "\n";
 				}
 
@@ -280,6 +284,15 @@ class nginx extends HttpConfigBase
 					}
 
 					if ((int) Settings::Get('phpfpm.enabled') == 1 && (int) Settings::Get('phpfpm.enabled_ownvhost') == 1) {
+						// get fpm config
+						$fpm_sel_stmt = Database::prepare("
+							SELECT f.id FROM `" . TABLE_PANEL_FPMDAEMONS . "` f
+							LEFT JOIN `" . TABLE_PANEL_PHPCONFIGS . "` p ON p.fpmsettingid = f.id
+							WHERE p.id = :phpconfigid
+						");
+						$fpm_config = Database::pexecute_first($fpm_sel_stmt, array(
+							'phpconfigid' => Settings::Get('phpfpm.vhost_defaultini')
+						));
 						$domain = array(
 							'id' => 'none',
 							'domain' => Settings::Get('system.hostname'),
@@ -290,7 +303,9 @@ class nginx extends HttpConfigBase
 							'openbasedir' => 0,
 							'email' => Settings::Get('panel.adminmail'),
 							'loginname' => 'froxlor.panel',
-							'documentroot' => $mypath
+							'documentroot' => $mypath,
+							'customerroot' => $mypath,
+							'fpm_config_id' => isset($fpm_config['id']) ? $fpm_config['id'] : 1
 						);
 
 						$php = new phpinterface($domain);
@@ -625,6 +640,13 @@ class nginx extends HttpConfigBase
 				// $sslsettings .= "\t" . 'ssl on;' . "\n";
 				$sslsettings .= "\t" . 'ssl_protocols ' . str_replace(",", " ", Settings::Get('system.ssl_protocols')) . ';' . "\n";
 				$sslsettings .= "\t" . 'ssl_ciphers ' . Settings::Get('system.ssl_cipher_list') . ';' . "\n";
+				if (!empty(Settings::Get('system.dhparams_file'))) {
+					$dhparams = makeCorrectFile(Settings::Get('system.dhparams_file'));
+					if (!file_exists($dhparams)) {
+						safe_exec('openssl dhparam -out '.escapeshellarg($dhparams).' 4096');
+					}
+					$sslsettings .= 'ssl_dhparam ' . $dhparams . ';' . "\n";
+				}
 				$sslsettings .= "\t" . 'ssl_ecdh_curve secp384r1;' . "\n";
 				$sslsettings .= "\t" . 'ssl_prefer_server_ciphers on;' . "\n";
 				$sslsettings .= "\t" . 'ssl_certificate ' . makeCorrectFile($domain_or_ip['ssl_cert_file']) . ';' . "\n";
